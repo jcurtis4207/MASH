@@ -22,11 +22,10 @@ using namespace std;
 struct Command
 {
     string program;
-    vector<string> stringArgs;
     int op = 0;
     int error = 0;
-    Command(const string prog, vector<string> args, const int oper)
-        : program(prog), stringArgs(args), op(oper){}
+    Command(const string prog, const int oper)
+        : program(prog), op(oper){}
     Command(const int el)
         : error(el){}
 };
@@ -37,7 +36,8 @@ string currentDir;
 bool updatePrompt;
 const map<int, string> errors = {
     {1, "Unknown Operator"}, 
-    {2, "Unknown Command"}
+    {2, "Unknown Command"},
+    {3, "Too Many Pipes"}
 };
 
 void clearScreen()
@@ -81,9 +81,9 @@ void showPrompt()
     cout << prompt.str();
 }
 
-void throwError(const string& message)
+void throwError(int errorLevel)
 {
-    cout << "ERROR: " << message << "\n";
+    cerr << "ERROR: " << errors.at(errorLevel) << "\n";
 }
 
 void getCommands(vector<Command>& commands, string input)
@@ -93,14 +93,14 @@ void getCommands(vector<Command>& commands, string input)
     {
         if(input[i] == ';')
         {
-            commands.push_back(Command(builder.str(), vector<string>(), SEMICOLON));
+            commands.push_back(Command(builder.str(), SEMICOLON));
             stringstream().swap(builder);
         }
         else if(input[i] == '&')
         {
             if(input[i + 1] == '&')
             {
-                commands.push_back(Command(builder.str(), vector<string>(), DOUBLE_AND));
+                commands.push_back(Command(builder.str(), DOUBLE_AND));
                 i++;
                 stringstream().swap(builder);
             }
@@ -114,20 +114,20 @@ void getCommands(vector<Command>& commands, string input)
         {
             if(input[i + 1] == '|')
             {
-                commands.push_back(Command(builder.str(), vector<string>{}, DOUBLE_OR));
+                commands.push_back(Command(builder.str(), DOUBLE_OR));
                 i++;
             stringstream().swap(builder);
             }
             else
             {
-                commands.push_back(Command(builder.str(), vector<string>(), PIPE));
+                commands.push_back(Command(builder.str(), PIPE));
                 stringstream().swap(builder);
             }
         }
         else
             builder << input[i];
     }
-    commands.push_back(Command(builder.str(), vector<string>(), SEMICOLON));
+    commands.push_back(Command(builder.str(), SEMICOLON));
 }
 
 string getProgram(string input)
@@ -144,6 +144,18 @@ vector<string> getArgs(string input)
     while (getline(inputStream, temp, ' '))
         args.push_back(temp);
     return args;
+}
+
+vector<char*> getCharPtrArray(vector<string>& input)
+{
+    vector<char*> result;
+    result.reserve(input.size() + 1);
+    transform(begin(input), end(input), 
+        back_inserter(result), 
+        [](string& s){ return s.data(); }
+    );
+    result.push_back(NULL);
+    return result;
 }
 
 bool executeBuiltins(const string& program, char* arg1)
@@ -172,45 +184,65 @@ bool executeBuiltins(const string& program, char* arg1)
     // su - updatePrompt = true
 }
 
-void executeCommand(Command& command)
+void executeCommand(Command& command, bool pipe)
 {
-    const vector<string> stringArgs = getArgs(command.program);
-    const string program = getProgram(command.program);
     if(command.error != 0)
     {
-        throwError(errors.at(command.error));
+        throwError(command.error);
         return;
     }
-    // convert strings to char*
-    const unsigned long argSize = stringArgs.size();
+    vector<string> stringArgs = getArgs(command.program);
+    const string program = getProgram(command.program);
     const char* cmd = program.c_str();
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wvla-extension"
-    char* args[argSize + 1];
-#pragma GCC diagnostic pop
-    for(unsigned long i = 0; i < argSize; i++)
+    vector<char*> args = getCharPtrArray(stringArgs);
+    // execute command in pipe
+    if(pipe)
     {
-        args[i] = new char[stringArgs[i].size() + 1];
-        strcpy(args[i], stringArgs[i].c_str());
+        if(execvp(cmd, args.data()) != 0)
+        {
+            command.error = 2;
+            throwError(command.error);
+        }
+        return;
     }
-    args[argSize] = NULL;
     // execute command
-    if(executeBuiltins(program, args[1]))
+    else if(executeBuiltins(program, args[1]))
     {
         if(fork() != 0)
             wait(NULL);
         else
         {
-            if(execvp(cmd, args) != 0)
+            if(execvp(cmd, args.data()) != 0)
             {
                 command.error = 2;
-                throwError(errors.at(command.error));
+                throwError(command.error);
             }
         }
     }
-    // clean up pointers
-    for(unsigned long i = 0; i < argSize; i++)
-        delete [] args[i];
+}
+
+void executePipe(Command& command1, Command& command2)
+{
+    int fds[2];
+    pipe(fds);
+    if(fork() == 0)
+    {
+        dup2(fds[1], STDOUT_FILENO);
+        close(fds[0]);
+        close(fds[1]);
+        executeCommand(command1, true);
+    }
+    if(fork() == 0)
+    {
+        dup2(fds[0], STDIN_FILENO);
+        close(fds[0]);
+        close(fds[1]);
+        executeCommand(command2, true);
+    }
+    close(fds[0]);
+    close(fds[1]);
+    wait(NULL);
+    wait(NULL);
 }
 
 int main()
@@ -227,15 +259,32 @@ int main()
         string line;
         getline(cin, line);
         getCommands(commands, line);
+        Command pipeIn = {0};
+        bool piping = false;
         for(auto& command : commands)
         {
-            // operator and error level determines execution
-            if(currentOperator == SEMICOLON)
-                executeCommand(command);
-            else if(currentOperator == DOUBLE_OR && errorLevel != 0)
-                executeCommand(command);
-            else if(currentOperator == DOUBLE_AND && errorLevel == 0)
-                executeCommand(command);
+            if(command.op == PIPE)
+            {
+                pipeIn = command;
+                piping = true;
+                continue;
+            }
+            if(piping)
+            {
+                executePipe(pipeIn, command);
+                piping = false;
+            }
+            else
+            {
+                if(command.op == PIPE)
+                    throwError(3);
+                else if(currentOperator == SEMICOLON)
+                    executeCommand(command, false);
+                else if(currentOperator == DOUBLE_OR && errorLevel != 0)
+                    executeCommand(command, false);
+                else if(currentOperator == DOUBLE_AND && errorLevel == 0)
+                    executeCommand(command, false);
+            }
             currentOperator = command.op;
             errorLevel = command.error;
         }

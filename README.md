@@ -8,6 +8,8 @@ It has a prompt showing the current user, hostname, and directory (with a colors
 
 It can accept multiple commands using semicolons, or conditional execution using && and ||.
 
+It also allows for a single pipe operation.
+
 If the input is not a built-in function, the input is executed with no error checking.
 
 ### Built-ins
@@ -21,7 +23,6 @@ The current built-in functions are:
 
 ### To-do
 These are the features that will eventually be implemented:
-* piping
 * expanding '~' to the user's home directory
 * dollar sign variables
 * arithmetic

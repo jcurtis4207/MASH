@@ -146,8 +146,24 @@ vector<string> getArgs(string input)
     return args;
 }
 
+void expandTildeToHome(vector<string>& input)
+{
+    for(auto& arg : input)
+    {
+        for(size_t i = 0; i < arg.size(); i++)
+        {
+            if(arg[i] == '~')
+            {
+                arg.replace(i, 1, getenv("HOME"));
+                break;
+            }
+        }
+    }
+}
+
 vector<char*> getCharPtrArray(vector<string>& input)
 {
+    expandTildeToHome(input);
     vector<char*> result;
     result.reserve(input.size() + 1);
     transform(begin(input), end(input), 
@@ -247,12 +263,12 @@ void executePipe(Command& command1, Command& command2)
 
 int main()
 {
-    vector<Command> commands;
     clearScreen();
     printFetch();
     updatePrompt = true;
     int errorLevel = 0;
     int currentOperator = SEMICOLON;
+    vector<Command> commands;
     while(true)
     {
         showPrompt();

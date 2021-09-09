@@ -10,7 +10,7 @@ It can accept multiple commands using semicolons, or conditional execution using
 
 It also allows for a single pipe operation.
 
-If the input is not a built-in function, the input is executed with no error checking.
+If the input is not a built-in function, the input is executed with basic error checking for unknown commands and operators.
 
 ### Built-ins
 The current built-in functions are:
@@ -18,12 +18,12 @@ The current built-in functions are:
 * clear
 * fetch (displaying an ASCII art rendition of MASH)
 * exit
+* ~ expands to the user's home directory
 
 # 
 
 ### To-do
 These are the features that will eventually be implemented:
-* expanding '~' to the user's home directory
 * dollar sign variables
 * arithmetic
 * scrollable history

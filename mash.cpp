@@ -160,6 +160,7 @@ vector<string> getArgs(string input)
 {
     vector<string> args;
     stringstream builder;
+    bool reachedFirstChar = false;
     bool inQuotes = false;
     for(unsigned long i = 0; i < input.length(); i++)
     {
@@ -173,18 +174,31 @@ vector<string> getArgs(string input)
             stringstream().swap(builder);
             inQuotes = false;
         }
-        else if(input[i] == ' ' && !inQuotes)
+        else if(input[i] == ' ' && !reachedFirstChar) // ignore opening whitespace
+            continue;
+        else if(input[i] == ' ' && !inQuotes) // split at whitespace
         {
             args.push_back(builder.str());
             stringstream().swap(builder);
         }
         else
+        {
+            reachedFirstChar = true;
             builder << input[i];
+        }
     }
     if(inQuotes)
         throwError(4);
-    if(!builder.str().empty())
-        args.push_back(builder.str());
+    args.push_back(builder.str());
+    // remove empty elements
+    for(unsigned long i = 0; i < args.size(); i++)
+    {
+        if(args[i].empty())
+        {
+            args.erase(args.begin() + static_cast<int>(i));
+            i--;
+        }
+    }
     return args;
 }
 
@@ -278,7 +292,6 @@ void executeCommand(Command& command, bool pipe)
             command.error = 2;
             throwError(command.error);
         }
-        return;
     }
     // execute command
     else if(executeBuiltins(program, args[1]))
@@ -335,19 +348,19 @@ int main()
         showPrompt();
         string line = getInput();
         getCommands(commands, line);
-        Command pipeIn = {0};
+        Command pipeStart = {0};
         bool piping = false;
         for(auto& command : commands)
         {
             if(command.op == PIPE)
             {
-                pipeIn = command;
+                pipeStart = command;
                 piping = true;
                 continue;
             }
             else if(piping)
             {
-                executePipe(pipeIn, command);
+                executePipe(pipeStart, command);
                 piping = false;
             }
             else

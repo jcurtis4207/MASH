@@ -85,6 +85,21 @@ void showPrompt()
     cout << prompt.str();
 }
 
+string getInput()
+{
+    string line;
+    getline(cin, line);
+    while(line[line.size() - 1] == '\\')
+    {
+        cout << "> ";
+        line = line.substr(0, line.size() - 1);
+        string temp;
+        getline(cin, temp);
+        line.append(temp);
+    }
+    return line;
+}
+
 void throwError(int errorLevel)
 {
     cerr << "ERROR: " << errors.at(errorLevel) << "\n";
@@ -318,8 +333,7 @@ int main()
     while(true)
     {
         showPrompt();
-        string line;
-        getline(cin, line);
+        string line = getInput();
         getCommands(commands, line);
         Command pipeIn = {0};
         bool piping = false;
@@ -350,7 +364,7 @@ int main()
             currentOperator = command.op;
             errorLevel = command.error;
         }
-      commands.clear();
+        commands.clear();
     }
     return errorLevel;
 }

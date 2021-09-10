@@ -4,11 +4,13 @@
 
 MASH is a simple linux-based shell written in C++.
 
-It has a prompt showing the current user, hostname, and directory (with a colorscheme that matches my prompt).
+The prompt shows the current user, hostname, and directory (with a colorscheme that matches my prompt).
 
 It can accept multiple commands using semicolons, or conditional execution using && and ||.
 
-It also allows for a single pipe operation.
+In addition, non-consecutive piping is allowed.
+
+A line ending in a backslash will allow for multiple lines of input.
 
 If the input is not a built-in function, the input is executed with basic error checking for unknown commands and operators.
 

@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <map>
+#include <pwd.h>
 #include <regex>
 #include <sstream>
 #include <string.h>
@@ -30,6 +31,7 @@ struct Command
         : error(el){}
 };
 
+uid_t userid;
 string username;
 string hostname;
 string currentDir;
@@ -58,10 +60,11 @@ void printFetch()
 
 void setGlobalParameters()
 {
-    char hName[100], cDir[100];
+    char uName[100], hName[100], cDir[100];
+    cuserid(uName);
     gethostname(hName, sizeof(hName));
     getcwd(cDir, sizeof(cDir));
-    username = getlogin();
+    username = uName;
     hostname = hName;
     currentDir = cDir;
     updatePrompt = false;
@@ -84,6 +87,7 @@ void showPrompt()
 void throwError(int errorLevel)
 {
     cerr << "ERROR: " << errors.at(errorLevel) << "\n";
+    exit(errorLevel);
 }
 
 void getCommands(vector<Command>& commands, string input)
@@ -174,6 +178,20 @@ vector<char*> getCharPtrArray(vector<string>& input)
     return result;
 }
 
+void changeUser(char* arg)
+{
+    updatePrompt = true;
+    uid_t new_euid;
+    struct passwd* pwd = getpwnam(arg);
+    if(pwd != NULL)
+    {
+        new_euid = pwd->pw_uid;
+        seteuid(new_euid);
+        cout << "UID: " << getuid() <<"\n";
+        cout << "EUID: " << geteuid() <<"\n";
+    }
+}
+
 bool executeBuiltins(const string& program, char* arg1)
 {
     if(program == "exit")
@@ -194,10 +212,13 @@ bool executeBuiltins(const string& program, char* arg1)
         printFetch();
         return false;
     }
+    else if(program == "su")
+    {
+        changeUser(arg1);
+        return false;
+    }
     else
         return true;
-
-    // su - updatePrompt = true
 }
 
 void executeCommand(Command& command, bool pipe)
@@ -263,6 +284,8 @@ void executePipe(Command& command1, Command& command2)
 
 int main()
 {
+    userid = getuid();
+    seteuid(userid);
     clearScreen();
     printFetch();
     updatePrompt = true;

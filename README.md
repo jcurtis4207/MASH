@@ -18,6 +18,7 @@ The current built-in functions are:
 * clear
 * fetch (displaying an ASCII art rendition of MASH)
 * exit
+* su
 * ~ expands to the user's home directory
 
 # 

@@ -39,7 +39,8 @@ bool updatePrompt;
 const map<int, string> errors = {
     {1, "Unknown Operator"}, 
     {2, "Unknown Command"},
-    {3, "Too Many Pipes"}
+    {3, "Too Many Pipes"},
+    {4, "No Closing Quotation"}
 };
 
 void clearScreen()
@@ -143,10 +144,32 @@ string getProgram(string input)
 vector<string> getArgs(string input)
 {
     vector<string> args;
-    stringstream inputStream(regex_replace(input, regex("^ +"), ""));
-    string temp;    
-    while (getline(inputStream, temp, ' '))
-        args.push_back(temp);
+    stringstream builder;
+    bool inQuotes = false;
+    for(unsigned long i = 0; i < input.length(); i++)
+    {
+        if(input[i] == '"' && !inQuotes) // open quote
+        {
+            inQuotes = true;
+        }
+        else if(input[i] == '"' && inQuotes) // close quote
+        {
+            args.push_back(builder.str());
+            stringstream().swap(builder);
+            inQuotes = false;
+        }
+        else if(input[i] == ' ' && !inQuotes)
+        {
+            args.push_back(builder.str());
+            stringstream().swap(builder);
+        }
+        else
+            builder << input[i];
+    }
+    if(inQuotes)
+        throwError(4);
+    if(!builder.str().empty())
+        args.push_back(builder.str());
     return args;
 }
 
@@ -308,7 +331,7 @@ int main()
                 piping = true;
                 continue;
             }
-            if(piping)
+            else if(piping)
             {
                 executePipe(pipeIn, command);
                 piping = false;

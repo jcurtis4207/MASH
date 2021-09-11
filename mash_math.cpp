@@ -173,7 +173,7 @@ void insideParentheses(vector<string>& tokens)
     dequeToVector(tokens, deck);
 }
 
-int operatorErrors(vector<string>& tokens)
+int checkTokenErrors(vector<string>& tokens)
 {
     int openPars = 0;
     int closePars = 0;
@@ -195,6 +195,11 @@ int operatorErrors(vector<string>& tokens)
                 cerr << "ERROR: Consecutive operators\n";
                 return 1;
             }
+        }
+        else if(tokens[i] == ".")
+        {
+            cerr << "ERROR: Operand must contain a digit\n";
+            return 1;
         }
     }
     if(openPars != closePars)
@@ -240,7 +245,7 @@ void mathMode(string input)
         return;
     }
     applyNegation(tokens);
-    if(operatorErrors(tokens) != 0)
+    if(checkTokenErrors(tokens) != 0)
     {
         return;
     }

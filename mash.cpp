@@ -24,11 +24,8 @@ struct Command
 {
     string program;
     int op = 0;
-    int error = 0;
     Command(const string prog, const int oper)
         : program(prog), op(oper){}
-    Command(const int el)
-        : error(el){}
 };
 
 uid_t userid;
@@ -36,11 +33,13 @@ string username;
 string hostname;
 string currentDir;
 bool updatePrompt;
-const map<int, string> errors = {
+const map<int, string> errorCodes = {
     {1, "Unknown Operator"}, 
     {2, "Unknown Command"},
     {3, "Too Many Pipes"},
-    {4, "No Closing Quotation"}
+    {4, "No Closing Quotation"},
+    {5, "File/Directory Not Found"},
+    {6, "User Does Not Exist"}
 };
 
 void clearScreen()
@@ -102,8 +101,7 @@ string getInput()
 
 void throwError(int errorLevel)
 {
-    cerr << "ERROR: " << errors.at(errorLevel) << "\n";
-    exit(errorLevel);
+    cerr << "ERROR: " << errorCodes.at(errorLevel) << "\n";
 }
 
 void getCommands(vector<Command>& commands, string input)
@@ -126,7 +124,7 @@ void getCommands(vector<Command>& commands, string input)
             }
             else
             {
-                commands.push_back(Command(1));
+                commands.push_back(Command("", SEMICOLON));
                 stringstream().swap(builder);
             }
         }
@@ -136,7 +134,7 @@ void getCommands(vector<Command>& commands, string input)
             {
                 commands.push_back(Command(builder.str(), DOUBLE_OR));
                 i++;
-            stringstream().swap(builder);
+                stringstream().swap(builder);
             }
             else
             {
@@ -154,6 +152,18 @@ string getProgram(string input)
 {
     input = regex_replace(input, regex("^ +"), "");
     return input.substr(0, input.find(" "));
+}
+
+void removeEmptyElements(vector<string>& strings)
+{
+    for(unsigned long i = 0; i < strings.size(); i++)
+    {
+        if(strings[i].empty())
+        {
+            strings.erase(strings.begin() + static_cast<int>(i));
+            i--;
+        }
+    }
 }
 
 vector<string> getArgs(string input)
@@ -174,7 +184,7 @@ vector<string> getArgs(string input)
             stringstream().swap(builder);
             inQuotes = false;
         }
-        else if(input[i] == ' ' && !reachedFirstChar) // ignore opening whitespace
+        else if(input[i] == ' ' && !reachedFirstChar) // ignore leading whitespace
             continue;
         else if(input[i] == ' ' && !inQuotes) // split at whitespace
         {
@@ -188,17 +198,9 @@ vector<string> getArgs(string input)
         }
     }
     if(inQuotes)
-        throwError(4);
+        return vector<string>();
     args.push_back(builder.str());
-    // remove empty elements
-    for(unsigned long i = 0; i < args.size(); i++)
-    {
-        if(args[i].empty())
-        {
-            args.erase(args.begin() + static_cast<int>(i));
-            i--;
-        }
-    }
+    removeEmptyElements(args);
     return args;
 }
 
@@ -230,7 +232,7 @@ vector<char*> getCharPtrArray(vector<string>& input)
     return result;
 }
 
-void changeUser(char* arg)
+int changeUser(char* arg)
 {
     updatePrompt = true;
     uid_t new_euid;
@@ -239,74 +241,92 @@ void changeUser(char* arg)
     {
         new_euid = pwd->pw_uid;
         seteuid(new_euid);
-        cout << "UID: " << getuid() <<"\n";
-        cout << "EUID: " << geteuid() <<"\n";
+        return 0;
     }
+    else
+        return 1;
 }
 
-bool executeBuiltins(const string& program, char* arg1)
+int executeBuiltins(const string& program, char* arg1)
 {
     if(program == "exit")
         exit(0);
     else if(program == "cd")
     {
-        chdir(arg1);
+        if(chdir(arg1) != 0)
+            return 5;
         updatePrompt = true;
-        return false;
+        return 0;
     }
     else if(program == "clear")
     {
         clearScreen();
-        return false;
+        return 0;
     }
     else if(program == "fetch")
     {
         printFetch();
-        return false;
+        return 0;
     }
     else if(program == "su")
     {
-        changeUser(arg1);
-        return false;
+        if(changeUser(arg1) != 0)
+            return 6;
+        return 0;
     }
     else
-        return true;
+        return -1; // no builtins ran
 }
 
-void executeCommand(Command& command, bool pipe)
+int executeCommand(Command& command, bool pipe)
 {
-    if(command.error != 0)
+    if(command.program == "")
     {
-        throwError(command.error);
-        return;
+        throwError(1);
+        return 1;
     }
     vector<string> stringArgs = getArgs(command.program);
+    if(stringArgs.empty())
+    {
+        throwError(4);
+        return 4;
+    }
     const string program = getProgram(command.program);
     const char* cmd = program.c_str();
     vector<char*> args = getCharPtrArray(stringArgs);
-    // execute command in pipe
     if(pipe)
     {
         if(execvp(cmd, args.data()) != 0)
         {
-            command.error = 2;
-            throwError(command.error);
+            throwError(2);
+            return 2;
         }
+        return 0;
     }
-    // execute command
-    else if(executeBuiltins(program, args[1]))
+    int childExitStatus = 0;
+    int builtinError = executeBuiltins(program, args[1]);
+    if(builtinError > 0)
+    {
+        throwError(builtinError);
+        return builtinError;
+    }
+    else if(builtinError < 0)
     {
         if(fork() != 0)
-            wait(NULL);
+            wait(&childExitStatus);
         else
         {
             if(execvp(cmd, args.data()) != 0)
             {
-                command.error = 2;
-                throwError(command.error);
+                throwError(2);
+                exit(2);
             }
         }
     }
+    if(WIFEXITED(childExitStatus))
+        return WEXITSTATUS(childExitStatus);
+    else
+        return -1;
 }
 
 void executePipe(Command& command1, Command& command2)
@@ -318,14 +338,16 @@ void executePipe(Command& command1, Command& command2)
         dup2(fds[1], STDOUT_FILENO);
         close(fds[0]);
         close(fds[1]);
-        executeCommand(command1, true);
+        if(executeCommand(command1, true) != 0)
+            exit(2);
     }
     if(fork() == 0)
     {
         dup2(fds[0], STDIN_FILENO);
         close(fds[0]);
         close(fds[1]);
-        executeCommand(command2, true);
+        if(executeCommand(command2, true) != 0)
+            exit(2);
     }
     close(fds[0]);
     close(fds[1]);
@@ -348,34 +370,39 @@ int main()
         showPrompt();
         string line = getInput();
         getCommands(commands, line);
-        Command pipeStart = {0};
+        Command pipeStart = {"", SEMICOLON};
         bool piping = false;
         for(auto& command : commands)
         {
-            if(command.op == PIPE)
+            if(piping)
             {
-                pipeStart = command;
-                piping = true;
-                continue;
-            }
-            else if(piping)
-            {
-                executePipe(pipeStart, command);
-                piping = false;
+                if(command.op == PIPE)
+                {
+                    throwError(3);
+                    break;
+                }
+                else
+                {
+                    executePipe(pipeStart, command);
+                    piping = false;
+                }
             }
             else
             {
                 if(command.op == PIPE)
-                    throwError(3);
-                else if(currentOperator == SEMICOLON)
-                    executeCommand(command, false);
+                {
+                    pipeStart = command;
+                    piping = true;
+                    continue;
+                }
+                if(currentOperator == SEMICOLON)
+                    errorLevel = executeCommand(command, false);
                 else if(currentOperator == DOUBLE_OR && errorLevel != 0)
-                    executeCommand(command, false);
+                    errorLevel = executeCommand(command, false);
                 else if(currentOperator == DOUBLE_AND && errorLevel == 0)
-                    executeCommand(command, false);
+                    errorLevel = executeCommand(command, false);
             }
             currentOperator = command.op;
-            errorLevel = command.error;
         }
         commands.clear();
     }

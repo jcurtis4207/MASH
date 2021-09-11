@@ -30,6 +30,7 @@ There are operators for exponents, multiplication, division, addition, and subtr
 Parentheses are also allowed.
 The order of operations follows PEMDAS.
 It accepts positive and negative numbers, integers and decimal numbers, and whitespace is ignored.
+Also, entering the word 'help' after the 'math' command displays the usage.
 An example of math mode looks like this:
 
 ```

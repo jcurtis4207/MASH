@@ -163,6 +163,7 @@ void insideParentheses(vector<string>& tokens)
                 deck.pop_back();
             }
             deck.pop_back(); // remove open parenthesis
+            reverse(insideTokens.begin(), insideTokens.end()); // popped in reverse order
             deck.push_back(performCalculations(insideTokens));
         }
         else

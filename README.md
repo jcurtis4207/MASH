@@ -21,14 +21,29 @@ The current built-in functions are:
 * fetch (displaying an ASCII art rendition of MASH)
 * exit
 * su
+* math (explained below)
 * ~ expands to the user's home directory
+
+### Math Mode
+The command 'math' allows for inline arithmetic calculations. 
+There are operators for exponents, multiplication, division, addition, and subtraction.
+Parentheses are also allowed.
+The order of operations follows PEMDAS.
+It accepts positive and negative numbers, integers and decimal numbers, and whitespace is ignored.
+An example of math mode looks like this:
+
+```
+math 5 / (2 + 2)
+``` 
+And the output is simply:
+```
+1.25
+```
 
 # 
 
 ### To-do
 These are the features that will eventually be implemented:
 * dollar sign variables
-* arithmetic
 * scrollable history
-* quotation marks
-* backslash escaping newlines
+* backslashes as escape characters

@@ -8,10 +8,10 @@
 #include <pwd.h>
 #include <regex>
 #include <sstream>
-#include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
+#include "mash_math.cpp"
 
 using namespace std;
 
@@ -104,11 +104,13 @@ void throwError(int errorLevel)
     cerr << "ERROR: " << errorCodes.at(errorLevel) << "\n";
 }
 
-void getCommands(vector<Command>& commands, string input)
+int getCommands(vector<Command>& commands, string input)
 {
     stringstream builder;
     for(unsigned long i = 0; i < input.length(); i++)
     {
+        if(builder.str() == "math")
+            return 1;
         if(input[i] == ';')
         {
             commands.push_back(Command(builder.str(), SEMICOLON));
@@ -146,6 +148,7 @@ void getCommands(vector<Command>& commands, string input)
             builder << input[i];
     }
     commands.push_back(Command(builder.str(), SEMICOLON));
+    return 0;
 }
 
 string getProgram(string input)
@@ -369,7 +372,11 @@ int main()
     {
         showPrompt();
         string line = getInput();
-        getCommands(commands, line);
+        if(getCommands(commands, line) == 1)
+        {
+            mathMode(line.substr(4));
+            continue;
+        }
         Command pipeStart = {"", SEMICOLON};
         bool piping = false;
         for(auto& command : commands)

@@ -15,9 +15,12 @@ extern bool updatePrompt;
 
 int main()
 {
-    seteuid(getuid());
     if(setvbuf(stdout, NULL, _IONBF, 0) != 0)
-        cerr << "SHIT";
+    {
+        cerr << "Stdout failed to set as unbuffered\n";
+        exit(1);
+    }
+    seteuid(getuid());
     clearScreen();
     printFetch();
     updatePrompt = true;
@@ -28,6 +31,7 @@ int main()
     {
         showPrompt();
         string line = getInput();
+        pushHistory(line);
         if(getCommands(commands, line) == 1)
         {
             mathMode(line.substr(4));

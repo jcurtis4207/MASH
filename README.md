@@ -14,6 +14,8 @@ A line ending in a backslash will allow for multiple lines of input.
 
 If the input is not a built-in function, the input is executed with basic error checking for unknown commands and operators.
 
+The up and down arrow keys cycle through the command history, which has a hardcoded size of 10.
+
 ### Built-ins
 The current built-in functions are:
 * cd
@@ -46,5 +48,4 @@ And the output is simply:
 ### To-do
 These are the features that will eventually be implemented:
 * dollar sign variables
-* scrollable history
 * backslashes as escape characters

@@ -2,6 +2,7 @@
 * This file contains all of the functions necessary to execute commands
 */
 
+#pragma once
 #include <iostream>
 #include <map>
 #include <pwd.h>

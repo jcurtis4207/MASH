@@ -7,6 +7,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <vector>
+#include "mash_history.cpp"
 
 using namespace std;
 
@@ -65,7 +66,7 @@ void clearInput(string& input)
     }
 }
 
-void parseArrowKeys(string& input)
+string parseArrowKeys(string& input)
 {
     getch();
     char ch = getch();
@@ -73,9 +74,16 @@ void parseArrowKeys(string& input)
     {
     case UP_ARROW:
         clearInput(input);
+        return getOlderHistoryEntry();
         break;
     case DOWN_ARROW:
         clearInput(input);
+        return getNewerHistoryEntry();
+        break;
+    default:
+        string output = input;
+        clearInput(input);
+        return output;
         break;
     }
 }
@@ -89,7 +97,8 @@ string getInput()
         char ch = getch();
         if(ch == ESC)
         {
-            parseArrowKeys(output);
+            output = parseArrowKeys(output);
+            cout << output;
             continue;
         }
         if(ch == BACKSPACE)

@@ -1,12 +1,55 @@
 #pragma once
+#include <fstream>
 #include <iostream>
+#include <map>
 
-// find file
-// return silent error if not opened
+using namespace std;
 
-// create vector of aliases
-// ignore comments
+map<string, string> aliases;
+extern bool aliasesOpen;
 
-// in execution, new function before builtins: test input against aliases
-// after getProgram, before getCharPtrArray
-// if found, add args to start of stringArgs
+void parseAlias(string input)
+{
+    if(input.empty())
+        return;
+    else if(input.substr(0, 5) != "alias")
+        return;
+    string alias;
+    string command;
+    unsigned long index = 6;
+    while(input[index] != '=')
+        alias.append(1, input[index++]);
+    index++;
+    while(index < input.size())
+    {
+        if(input[index] == '#')
+            break;
+        else if(input[index] == '"')
+            index++;
+        else
+            command.append(1, input[index++]);
+    }
+    aliases.insert(pair<string, string>(alias, command));
+}
+
+void openAliasesFile()
+{
+    aliases.clear();
+    string fileLocation = getenv("HOME");
+    fileLocation.append("/.mash_aliases");
+    fstream aliasFile;
+    aliasFile.open(fileLocation, ios::in);
+    if(!aliasFile)
+    {
+        aliasesOpen = false;
+        return;
+    }
+    string line;
+    while(aliasFile)
+    {
+        getline(aliasFile, line);
+        parseAlias(line);
+    }
+    aliasFile.close();
+    aliasesOpen = true;
+}

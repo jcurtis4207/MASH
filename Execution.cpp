@@ -6,12 +6,15 @@
 #include <iostream>
 #include <map>
 #include <pwd.h>
+#include <sstream>
+#include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include "Parser.cpp"
 
 using namespace std;
 
+bool aliasesOpen = false;
 bool updatePrompt;
 string username;
 string hostname;
@@ -24,6 +27,11 @@ const map<int, string> errorCodes = {
     {5, "File/Directory Not Found"},
     {6, "User Does Not Exist"}
 };
+
+void setAliasesOpen(bool input)
+{
+    aliasesOpen = input;
+}
 
 void throwError(int errorLevel)
 {
@@ -72,6 +80,16 @@ void showPrompt()
     cout << prompt.str();
 }
 
+int changeDirectory(char* arg)
+{
+    if(arg == NULL)
+        arg = getenv("HOME");
+    if(chdir(arg) != 0)
+        return 5;
+    updatePrompt = true;
+    return 0;
+}
+
 int changeUser(char* arg)
 {
     updatePrompt = true;
@@ -81,10 +99,11 @@ int changeUser(char* arg)
     {
         new_euid = pwd->pw_uid;
         seteuid(new_euid);
+        openAliasesFile();
         return 0;
     }
     else
-        return 1;
+        return 6;
 }
 
 int executeBuiltins(const string& program, char* arg1)
@@ -92,12 +111,7 @@ int executeBuiltins(const string& program, char* arg1)
     if(program == "exit")
         exit(0);
     else if(program == "cd")
-    {
-        if(chdir(arg1) != 0)
-            return 5;
-        updatePrompt = true;
-        return 0;
-    }
+        return changeDirectory(arg1);
     else if(program == "clear")
     {
         clearScreen();
@@ -109,11 +123,7 @@ int executeBuiltins(const string& program, char* arg1)
         return 0;
     }
     else if(program == "su")
-    {
-        if(changeUser(arg1) != 0)
-            return 6;
-        return 0;
-    }
+        return changeUser(arg1);
     else
         return -1; // no builtins ran
 }
@@ -127,6 +137,8 @@ int executeCommand(Command& command, bool pipe)
     }
     if(command.program == "")
         return 0;
+    if(aliasesOpen)
+        command.program = expandAlias(command.program);
     vector<string> stringArgs = getArgs(command.program);
     if(stringArgs.empty())
     {

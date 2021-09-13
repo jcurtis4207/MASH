@@ -8,6 +8,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <vector>
+#include "Aliases.cpp"
 #include "History.cpp"
 
 using namespace std;
@@ -23,6 +24,8 @@ using namespace std;
 #define DOWN_ARROW 'B'
 #define LEFT_ARROW 'D'
 #define RIGHT_ARROW 'C'
+
+extern map<string, string> aliases;
 
 struct Command
 {
@@ -269,4 +272,28 @@ vector<char*> getCharPtrArray(vector<string>& input)
     );
     result.push_back(NULL);
     return result;
+}
+
+string expandAlias(string input)
+{
+    string program;
+    bool reachedFirstChar = false;
+    unsigned long i;
+    for(i = 0; i < input.size(); i++)
+    {
+        if(input[i] == ' ' && !reachedFirstChar)
+            continue;
+        else if(input[i] == ' ')
+            break;
+        else
+        {
+            reachedFirstChar = true;
+            program.append(1, input[i]);
+        }   
+    }
+    map<string, string>::iterator it = aliases.find(program);
+    if(it == aliases.end())
+        return input;
+    string newCommand = it->second;
+    return input.replace(0, i, newCommand);
 }

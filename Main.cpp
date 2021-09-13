@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <vector>
+#include "Aliases.cpp"
 #include "Math.cpp"
 #include "Parser.cpp"
 #include "Execution.cpp"
@@ -17,10 +18,11 @@ int main()
 {
     if(setvbuf(stdout, NULL, _IONBF, 0) != 0)
     {
-        cerr << "Stdout failed to set as unbuffered\n";
+        cerr << "Stdout failed to be set unbuffered\n";
         exit(1);
     }
     seteuid(getuid());
+    openAliasesFile();
     clearScreen();
     printFetch();
     updatePrompt = true;

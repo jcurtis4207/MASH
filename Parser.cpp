@@ -187,9 +187,11 @@ string getProgram(string input)
     bool commandStart = false;
     for(unsigned long i = 0; i < input.size(); i++)
     {
-        if(input[i] == ' ' && !commandStart) // skip leading whitespace
+        // skip leading whitespace
+        if(input[i] == ' ' && !commandStart)
             continue;
-        else if(input[i] == ' ' && commandStart) // end on first space
+        // end at first space
+        else if(input[i] == ' ' && commandStart)
             break;
         else
         {
@@ -220,23 +222,28 @@ vector<string> getArgs(string input)
     bool inQuotes = false;
     for(unsigned long i = 0; i < input.length(); i++)
     {
-        if(input[i] == '"' && !inQuotes) // open quote
+        // open quote
+        if(input[i] == '"' && !inQuotes)
         {
             inQuotes = true;
         }
-        else if(input[i] == '"' && inQuotes) // close quote
+        // closing quote
+        else if(input[i] == '"' && inQuotes)
         {
             args.push_back(argument);
             argument.clear();
             inQuotes = false;
         }
-        else if(input[i] == ' ' && !reachedFirstChar) // ignore leading whitespace
+        // ignore leading whitespace
+        else if(input[i] == ' ' && !reachedFirstChar)
             continue;
-        else if(input[i] == ' ' && !inQuotes) // split at whitespace
+        // split at whitespace
+        else if(input[i] == ' ' && !inQuotes)
         {
             args.push_back(argument);
             argument.clear();
         }
+        // add regular character
         else
         {
             reachedFirstChar = true;

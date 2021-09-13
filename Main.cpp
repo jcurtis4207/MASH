@@ -12,7 +12,47 @@
 
 using namespace std;
 
-extern bool updatePrompt;
+bool piping = false;
+int errorLevel = 0;
+int currentOperator = SEMICOLON;
+
+void processCommands(vector<Command>& commands)
+{
+    piping = false;
+    Command pipeStart = {"", SEMICOLON};
+    for(auto& command : commands)
+    {
+        if(piping)
+        {
+            if(command.op == PIPE)
+            {
+                throwError(3);
+                break;
+            }
+            else
+            {
+                errorLevel = initiatePipe(pipeStart, command);
+                piping = false;
+            }
+        }
+        else
+        {
+            if(command.op == PIPE)
+            {
+                pipeStart = command;
+                piping = true;
+                continue;
+            }
+            if(currentOperator == SEMICOLON)
+                errorLevel = initiateCommand(command, false);
+            else if(currentOperator == DOUBLE_OR && errorLevel != 0)
+                errorLevel = initiateCommand(command, false);
+            else if(currentOperator == DOUBLE_AND && errorLevel == 0)
+                errorLevel = initiateCommand(command, false);
+        }
+        currentOperator = command.op;
+    }
+}
 
 int main()
 {
@@ -25,9 +65,7 @@ int main()
     openAliasesFile();
     clearScreen();
     printFetch();
-    updatePrompt = true;
-    int errorLevel = 0;
-    int currentOperator = SEMICOLON;
+    setUpdatePrompt();
     vector<Command> commands;
     while(true)
     {
@@ -39,40 +77,7 @@ int main()
             mathMode(line.substr(4));
             continue;
         }
-        Command pipeStart = {"", SEMICOLON};
-        bool piping = false;
-        for(auto& command : commands)
-        {
-            if(piping)
-            {
-                if(command.op == PIPE)
-                {
-                    throwError(3);
-                    break;
-                }
-                else
-                {
-                    executePipe(pipeStart, command);
-                    piping = false;
-                }
-            }
-            else
-            {
-                if(command.op == PIPE)
-                {
-                    pipeStart = command;
-                    piping = true;
-                    continue;
-                }
-                if(currentOperator == SEMICOLON)
-                    errorLevel = executeCommand(command, false);
-                else if(currentOperator == DOUBLE_OR && errorLevel != 0)
-                    errorLevel = executeCommand(command, false);
-                else if(currentOperator == DOUBLE_AND && errorLevel == 0)
-                    errorLevel = executeCommand(command, false);
-            }
-            currentOperator = command.op;
-        }
+        processCommands(commands);
         commands.clear();
     }
     return errorLevel;

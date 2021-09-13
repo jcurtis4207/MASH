@@ -33,9 +33,10 @@ void setAliasesOpen(bool input)
     aliasesOpen = input;
 }
 
-void throwError(int errorLevel)
+int throwError(int errorLevel)
 {
     cerr << "ERROR: " << errorCodes.at(errorLevel) << "\n";
+    return errorLevel;
 }
 
 void clearScreen()
@@ -64,6 +65,11 @@ void setGlobalParameters()
     hostname = hName;
     currentDir = cDir;
     updatePrompt = false;
+}
+
+void setUpdatePrompt()
+{
+    updatePrompt = true;
 }
 
 void showPrompt()
@@ -128,42 +134,19 @@ int executeBuiltins(const string& program, char* arg1)
         return -1; // no builtins ran
 }
 
-int executeCommand(Command& command, bool pipe)
+int executePipeCommand(const char* cmd, vector<char*> args)
 {
-    if(command.op == -1)
-    {
-        throwError(1);
-        return 1;
-    }
-    if(command.program == "")
-        return 0;
-    if(aliasesOpen)
-        command.program = expandAlias(command.program);
-    vector<string> stringArgs = getArgs(command.program);
-    if(stringArgs.empty())
-    {
-        throwError(4);
-        return 4;
-    }
-    const string program = getProgram(command.program);
-    const char* cmd = program.c_str();
-    vector<char*> args = getCharPtrArray(stringArgs);
-    if(pipe)
-    {
-        if(execvp(cmd, args.data()) != 0)
-        {
-            throwError(2);
-            return 2;
-        }
-        return 0;
-    }
+    if(execvp(cmd, args.data()) != 0)
+        return throwError(2);
+    return 0;
+}
+
+int executeCommand(const char* cmd, vector<char*> args)
+{
     int childExitStatus = 0;
-    int builtinError = executeBuiltins(program, args[1]);
+    int builtinError = executeBuiltins(cmd, args[1]);
     if(builtinError > 0)
-    {
-        throwError(builtinError);
-        return builtinError;
-    }
+        return throwError(builtinError);
     else if(builtinError < 0)
     {
         if(fork() != 0)
@@ -171,10 +154,7 @@ int executeCommand(Command& command, bool pipe)
         else
         {
             if(execvp(cmd, args.data()) != 0)
-            {
-                throwError(2);
-                exit(2);
-            }
+                exit(throwError(2));
         }
     }
     if(WIFEXITED(childExitStatus))
@@ -183,8 +163,29 @@ int executeCommand(Command& command, bool pipe)
         return -1;
 }
 
-void executePipe(Command& command1, Command& command2)
+int initiateCommand(Command& command, bool pipe)
 {
+    if(command.op == -1)
+        return throwError(1);
+    if(command.program == "")
+        return 0;
+    if(aliasesOpen)
+        command.program = expandAlias(command.program);
+    vector<string> stringArgs = getArgs(command.program);
+    if(stringArgs.empty())
+        return throwError(4);
+    const string program = getProgram(command.program);
+    const char* cmd = program.c_str();
+    vector<char*> args = getCharPtrArray(stringArgs);
+    if(pipe)
+        return executePipeCommand(cmd, args);
+    else
+        return executeCommand(cmd, args);
+}
+
+int initiatePipe(Command& command1, Command& command2)
+{
+    int childExitStatus = 0;
     int fds[2];
     pipe(fds);
     if(fork() == 0)
@@ -192,7 +193,7 @@ void executePipe(Command& command1, Command& command2)
         dup2(fds[1], STDOUT_FILENO);
         close(fds[0]);
         close(fds[1]);
-        if(executeCommand(command1, true) != 0)
+        if(initiateCommand(command1, true) != 0)
             exit(2);
     }
     if(fork() == 0)
@@ -200,11 +201,15 @@ void executePipe(Command& command1, Command& command2)
         dup2(fds[0], STDIN_FILENO);
         close(fds[0]);
         close(fds[1]);
-        if(executeCommand(command2, true) != 0)
+        if(initiateCommand(command2, true) != 0)
             exit(2);
     }
     close(fds[0]);
     close(fds[1]);
     wait(NULL);
-    wait(NULL);
+    wait(&childExitStatus);
+    if(WIFEXITED(childExitStatus))
+        return WEXITSTATUS(childExitStatus);
+    else
+        return -1;
 }

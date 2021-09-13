@@ -70,26 +70,30 @@ void clearInput(string& input)
     }
 }
 
-string parseArrowKeys(string& input)
+string parseSpecialKeys(string& input)
 {
-    getch();
-    char ch = getch();
-    switch(ch)
+    string output = input;
+    clearInput(input);
+    char char1 = getch();
+    if(char1 == '.')
+        return output.append(getLastArg());
+    else if(char1 == '[')
     {
-    case UP_ARROW:
-        clearInput(input);
-        return getOlderHistoryEntry();
-        break;
-    case DOWN_ARROW:
-        clearInput(input);
-        return getNewerHistoryEntry();
-        break;
-    default:
-        string output = input;
-        clearInput(input);
-        return output;
-        break;
+        char char2 = getch();
+        switch(char2)
+        {
+        case UP_ARROW:
+            return getOlderHistoryEntry();
+            break;
+        case DOWN_ARROW:
+            return getNewerHistoryEntry();
+            break;
+        default:
+            return output;
+            break;
+        }
     }
+    return "";
 }
 
 string getInput()
@@ -101,7 +105,7 @@ string getInput()
         char ch = getch();
         if(ch == ESC)
         {
-            output = parseArrowKeys(output);
+            output = parseSpecialKeys(output);
             cout << output;
             continue;
         }

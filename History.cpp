@@ -38,3 +38,18 @@ string getNewerHistoryEntry()
     else
         return history[historyIndex++];
 }
+
+string getLastArg()
+{
+    string command = history[history.size() - 1];
+    unsigned long i = command.size() -1;
+    while(i > 0)
+    {
+        if(command[--i] == ' ')
+            break;
+    }
+    if(i == 0)
+        return "";
+    else
+        return command.substr(i + 1);
+}

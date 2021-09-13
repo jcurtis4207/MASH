@@ -16,6 +16,10 @@ If the input is not a built-in function, the input is executed with basic error 
 
 The up and down arrow keys cycle through the command history, which has a hardcoded size of 10.
 
+The key combo Alt+. inserts the last argument from the last entered command.
+
+If present, a file named '.mash_aliases' in the user's home folder can supply command aliases.
+
 ### Built-ins
 The current built-in functions are:
 * cd

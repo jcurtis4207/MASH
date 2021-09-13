@@ -4,7 +4,8 @@
 
 #pragma once
 #include <iostream>
-#include <sstream>
+#include <termios.h>
+#include <unistd.h>
 #include <vector>
 
 using namespace std;
@@ -14,6 +15,13 @@ using namespace std;
 #define DOUBLE_OR 2
 #define PIPE 3
 
+#define ESC 27
+#define BACKSPACE 127
+#define UP_ARROW 'A'
+#define DOWN_ARROW 'B'
+#define LEFT_ARROW 'D'
+#define RIGHT_ARROW 'C'
+
 struct Command
 {
     string program;
@@ -22,85 +30,157 @@ struct Command
         : program(prog), op(oper){}
 };
 
+char getch() {
+    /*
+    https://stackoverflow.com/questions/421860/capture-characters-from-standard-input-without-waiting-for-enter-to-be-pressed
+    */
+    char buf = 0;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+    struct termios old = {0};
+#pragma GCC diagnostic pop
+    if (tcgetattr(0, &old) < 0)
+        perror("tcsetattr()");
+    old.c_lflag &= static_cast<unsigned int>(~ICANON);
+    old.c_lflag &= static_cast<unsigned int>(~ECHO);
+    old.c_cc[VMIN] = 1;
+    old.c_cc[VTIME] = 0;
+    if (tcsetattr(0, TCSANOW, &old) < 0)
+        perror("tcsetattr ICANON");
+    if (read(STDIN_FILENO, &buf, 1) < 0)
+        perror ("read()");
+    old.c_lflag |= ICANON;
+    old.c_lflag |= ECHO;
+    if (tcsetattr(0, TCSADRAIN, &old) < 0)
+        perror ("tcsetattr ~ICANON");
+    return (buf);
+}
+
+void clearInput(string& input)
+{
+    while(!input.empty())
+    {
+        cout << "\b \b";
+        input.pop_back();
+    }
+}
+
+void parseArrowKeys(string& input)
+{
+    getch();
+    char ch = getch();
+    switch(ch)
+    {
+    case UP_ARROW:
+        clearInput(input);
+        break;
+    case DOWN_ARROW:
+        clearInput(input);
+        break;
+    }
+}
+
 string getInput()
 {
-    string line;
-    getline(cin, line);
-    while(line[line.size() - 1] == '\\')
+    string output;
+    bool backslash = false;
+    while(true)
     {
-        cout << "> ";
-        line = line.substr(0, line.size() - 1);
-        string temp;
-        getline(cin, temp);
-        line.append(temp);
+        char ch = getch();
+        if(ch == ESC)
+        {
+            parseArrowKeys(output);
+            continue;
+        }
+        if(ch == BACKSPACE)
+        {
+            if(!output.empty())
+            {
+                cout << "\b \b";
+                output.pop_back();
+            }
+            continue;
+        }
+        cout << ch;
+        if(ch == '\n' && backslash)
+        {
+            cout << "> ";
+            continue;
+        }
+        else if(ch == '\n' && !backslash)
+            break;
+        backslash = (ch == '\\') ? true : false;
+        if(backslash)
+            continue;
+        output.append(1, ch);
     }
-    return line;
+    return output;
 }
 
 int getCommands(vector<Command>& commands, string input)
 {
-    stringstream builder;
+    string program;
     for(unsigned long i = 0; i < input.length(); i++)
     {
-        if(builder.str() == "math")
+        if(program == "math")
             return 1;
         if(input[i] == ';')
         {
-            commands.push_back(Command(builder.str(), SEMICOLON));
-            stringstream().swap(builder);
+            commands.push_back(Command(program, SEMICOLON));
+            program.clear();
         }
         else if(input[i] == '&')
         {
             if(input[i + 1] == '&')
             {
-                commands.push_back(Command(builder.str(), DOUBLE_AND));
+                commands.push_back(Command(program, DOUBLE_AND));
                 i++;
-                stringstream().swap(builder);
+                program.clear();
             }
             else
             {
                 commands.push_back(Command("", -1));
-                stringstream().swap(builder);
+                program.clear();
             }
         }
         else if(input[i] == '|')
         {
             if(input[i + 1] == '|')
             {
-                commands.push_back(Command(builder.str(), DOUBLE_OR));
+                commands.push_back(Command(program, DOUBLE_OR));
                 i++;
-                stringstream().swap(builder);
+                program.clear();
             }
             else
             {
-                commands.push_back(Command(builder.str(), PIPE));
-                stringstream().swap(builder);
+                commands.push_back(Command(program, PIPE));
+                program.clear();
             }
         }
         else
-            builder << input[i];
+            program.append(1, input[i]);
     }
-    commands.push_back(Command(builder.str(), SEMICOLON));
+    commands.push_back(Command(program, SEMICOLON));
     return 0;
 }
 
 string getProgram(string input)
 {
-    stringstream output;
+    string output;
     bool commandStart = false;
     for(unsigned long i = 0; i < input.size(); i++)
     {
         if(input[i] == ' ' && !commandStart) // skip leading whitespace
             continue;
-        else if(input[i] == ' ' && commandStart)
+        else if(input[i] == ' ' && commandStart) // end on first space
             break;
         else
         {
             commandStart = true;
-            output << input[i];
+            output.append(1, input[i]);
         }
     }
-    return output.str();
+    return output;
 }
 
 void removeEmptyElements(vector<string>& strings)
@@ -118,7 +198,7 @@ void removeEmptyElements(vector<string>& strings)
 vector<string> getArgs(string input)
 {
     vector<string> args;
-    stringstream builder;
+    string argument;
     bool reachedFirstChar = false;
     bool inQuotes = false;
     for(unsigned long i = 0; i < input.length(); i++)
@@ -129,26 +209,26 @@ vector<string> getArgs(string input)
         }
         else if(input[i] == '"' && inQuotes) // close quote
         {
-            args.push_back(builder.str());
-            stringstream().swap(builder);
+            args.push_back(argument);
+            argument.clear();
             inQuotes = false;
         }
         else if(input[i] == ' ' && !reachedFirstChar) // ignore leading whitespace
             continue;
         else if(input[i] == ' ' && !inQuotes) // split at whitespace
         {
-            args.push_back(builder.str());
-            stringstream().swap(builder);
+            args.push_back(argument);
+            argument.clear();
         }
         else
         {
             reachedFirstChar = true;
-            builder << input[i];
+            argument.append(1, input[i]);
         }
     }
     if(inQuotes)
         return vector<string>();
-    args.push_back(builder.str());
+    args.push_back(argument);
     removeEmptyElements(args);
     return args;
 }

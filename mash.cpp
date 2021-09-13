@@ -16,6 +16,8 @@ extern bool updatePrompt;
 int main()
 {
     seteuid(getuid());
+    if(setvbuf(stdout, NULL, _IONBF, 0) != 0)
+        cerr << "SHIT";
     clearScreen();
     printFetch();
     updatePrompt = true;
